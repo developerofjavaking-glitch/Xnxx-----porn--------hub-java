@@ -54,13 +54,25 @@ object Terrain {
 
         var h = 26.0 + base * 11.0 + detail * 4.0 + mountain + seaDip
 
-        // River carving
+        // Smooth river and valley generation:
+        // Guarantees continuous, unbroken waterways filled with water at SEA_LEVEL
         val riv = riverValue(wx, wz)
-        val riverWidth = 0.05
-        if (riv < riverWidth) {
-            val carve = 1.0 - (riv / riverWidth)
-            val riverBed = Config.SEA_LEVEL - 2.5 - carve * 2.0
-            h = h * (1.0 - carve * carve) + riverBed * (carve * carve)
+        val valleyWidth = 0.08
+        if (riv < valleyWidth) {
+            val riverWidth = 0.038
+            if (riv < riverWidth) {
+                // Inside river channel: riverbed is always below SEA_LEVEL (depth 3 to 4 blocks)
+                val bedT = riv / riverWidth
+                val bedY = (Config.SEA_LEVEL - 3.8) + bedT * 1.6 // 18.2 at center, 19.8 at edge
+                h = bedY
+            } else {
+                // Valley slope: gentle banks rising from river's edge to surrounding land
+                val t = (riv - riverWidth) / (valleyWidth - riverWidth)
+                val smoothT = t * t * (3.0 - 2.0 * t) // smoothstep
+                val bankY = Config.SEA_LEVEL + 0.8
+                val targetH = bankY + (h - bankY).coerceAtLeast(0.0) * smoothT
+                h = targetH
+            }
         }
 
         return h.toInt().coerceIn(2, Config.WORLD_HEIGHT - 3)
@@ -77,15 +89,15 @@ object Terrain {
                 val wx = minWx + x
                 val wz = minWz + z
                 val h = heightAt(wx, wz)
-                val beach = h <= Config.SEA_LEVEL + 2
+                val beach = h <= Config.SEA_LEVEL + 1
                 val isUnderwater = h < Config.SEA_LEVEL
 
                 // Detailed seabed composition using local noise
                 val seabedNoise = ((wx * 37 + wz * 19 + (wx xor wz)) and 0xFF)
                 val seabedBlock = when {
-                    seabedNoise < 110 -> Blocks.SAND       // 43% golden sand
-                    seabedNoise < 190 -> Blocks.STONE      // 31% river gravel/rock
-                    else -> Blocks.DIRT                    // 26% river silt/clay
+                    seabedNoise < 120 -> Blocks.SAND       // 47% golden sand
+                    seabedNoise < 195 -> Blocks.STONE      // 30% river gravel/rock
+                    else -> Blocks.DIRT                    // 23% river silt/clay
                 }
 
                 for (y in 0..h) {
@@ -102,21 +114,10 @@ object Terrain {
                     c.blocks[c.index(x, y, z)] = id.toByte()
                 }
 
-                // Fill water and underwater seagrass meadows
+                // Fill water in oceans and rivers up to SEA_LEVEL
                 if (isUnderwater) {
-                    val depth = Config.SEA_LEVEL - h
-                    // Seagrass spawn chance in shallow to mid waters (2..6 blocks deep)
-                    val hasSeagrass = depth in 2..6 && (seabedNoise % 5 == 0)
-
                     for (y in (h + 1)..Config.SEA_LEVEL) {
                         c.blocks[c.index(x, y, z)] = Blocks.WATER.toByte()
-                    }
-
-                    if (hasSeagrass && h + 1 <= Config.SEA_LEVEL) {
-                        c.blocks[c.index(x, h + 1, z)] = Blocks.SEAGRASS.toByte()
-                        if (depth >= 4 && h + 2 < Config.SEA_LEVEL) {
-                            c.blocks[c.index(x, h + 2, z)] = Blocks.SEAGRASS.toByte()
-                        }
                     }
                 }
             }
@@ -174,7 +175,7 @@ object Terrain {
                     }
                     placeLeaf(tx, topY + 1, tz)
                 } else {
-                    // Lush Oak foliage with overhangs
+                    // Lush Oak foliage with natural overhangs
                     for (ly in (topY - 3)..(topY - 1)) {
                         for (dx in -2..2) {
                             for (dz in -2..2) {

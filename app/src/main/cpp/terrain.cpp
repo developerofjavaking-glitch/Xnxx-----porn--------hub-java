@@ -45,12 +45,23 @@ int heightAt(int wx, int wz) {
 
     double h = 26.0 + base * 11.0 + detail * 4.0 + mountain + seaDip;
 
+    // Smooth river and valley generation:
+    // Guarantees continuous, unbroken waterways filled with water at SEA_LEVEL
     const double riv = riverValue(wx, wz);
-    const double riverWidth = 0.05;
-    if (riv < riverWidth) {
-        const double carve = 1.0 - (riv / riverWidth);
-        const double riverBed = SEA_LEVEL - 2.5 - carve * 2.0;
-        h = h * (1.0 - carve * carve) + riverBed * (carve * carve);
+    const double valleyWidth = 0.08;
+    if (riv < valleyWidth) {
+        const double riverWidth = 0.038;
+        if (riv < riverWidth) {
+            const double bedT = riv / riverWidth;
+            const double bedY = (SEA_LEVEL - 3.8) + bedT * 1.6;
+            h = bedY;
+        } else {
+            const double t = (riv - riverWidth) / (valleyWidth - riverWidth);
+            const double smoothT = t * t * (3.0 - 2.0 * t);
+            const double bankY = SEA_LEVEL + 0.8;
+            const double targetH = bankY + std::max(0.0, h - bankY) * smoothT;
+            h = targetH;
+        }
     }
 
     return std::min(std::max(static_cast<int>(h), 2), HEIGHT - 3);
@@ -67,13 +78,13 @@ void fillChunk(int8_t* blocks, int cx, int cz) {
             const int wx = minWx + x;
             const int wz = minWz + z;
             const int h = heightAt(wx, wz);
-            const bool beach = h <= SEA_LEVEL + 2;
+            const bool beach = h <= SEA_LEVEL + 1;
             const bool isUnderwater = h < SEA_LEVEL;
 
             const int seabedNoise = ((wx * 37 + wz * 19 + (wx ^ wz)) & 0xFF);
             int8_t seabedBlock;
-            if (seabedNoise < 110) seabedBlock = SAND;
-            else if (seabedNoise < 190) seabedBlock = STONE;
+            if (seabedNoise < 120) seabedBlock = SAND;
+            else if (seabedNoise < 195) seabedBlock = STONE;
             else seabedBlock = DIRT;
 
             for (int y = 0; y <= h; y++) {
@@ -89,20 +100,10 @@ void fillChunk(int8_t* blocks, int cx, int cz) {
                 blocks[blockIndex(x, y, z)] = id;
             }
 
-            // Fill water and underwater seagrass meadows
+            // Fill water in oceans and rivers up to SEA_LEVEL
             if (isUnderwater) {
-                const int depth = SEA_LEVEL - h;
-                const bool hasSeagrass = (depth >= 2 && depth <= 6 && (seabedNoise % 5 == 0));
-
                 for (int y = h + 1; y <= SEA_LEVEL; y++) {
                     blocks[blockIndex(x, y, z)] = static_cast<int8_t>(WATER);
-                }
-
-                if (hasSeagrass && h + 1 <= SEA_LEVEL) {
-                    blocks[blockIndex(x, h + 1, z)] = static_cast<int8_t>(SEAGRASS);
-                    if (depth >= 4 && h + 2 < SEA_LEVEL) {
-                        blocks[blockIndex(x, h + 2, z)] = static_cast<int8_t>(SEAGRASS);
-                    }
                 }
             }
         }

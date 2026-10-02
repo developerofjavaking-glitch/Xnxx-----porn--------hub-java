@@ -46,6 +46,8 @@ class GameRenderer(private val shared: Shared) : GLSurfaceView.Renderer {
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES20.glClearColor(skyR, skyG, skyB, 1f)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glEnable(GLES20.GL_CULL_FACE)
         GLES20.glCullFace(GLES20.GL_BACK)
         GLES20.glFrontFace(GLES20.GL_CCW)
@@ -211,7 +213,10 @@ class GameRenderer(private val shared: Shared) : GLSurfaceView.Renderer {
                         6.0
                     ) ?: continue
                     if (a == Input.ACT_BREAK) {
-                        if (hit.y > 0) world.setBlock(hit.x, hit.y, hit.z, Blocks.AIR)
+                        if (hit.y > 0) {
+                            val replaceId = if (hit.y <= Config.SEA_LEVEL) Blocks.WATER else Blocks.AIR
+                            world.setBlock(hit.x, hit.y, hit.z, replaceId)
+                        }
                     } else if (!player.intersectsBlock(hit.px, hit.py, hit.pz)) {
                         world.setBlock(hit.px, hit.py, hit.pz, Blocks.palette[blockIndex])
                     }
@@ -375,7 +380,8 @@ class GameRenderer(private val shared: Shared) : GLSurfaceView.Renderer {
 
                 // Distance fog: atmospheric haze in air, dense cyan-blue ocean fog underwater
                 float f = clamp((uFogEnd - vDist) / (uFogEnd - uFogStart), 0.0, 1.0);
-                gl_FragColor = vec4(mix(uFogColor, col, f), 1.0);
+                float alpha = isWater ? 0.78 : 1.0;
+                gl_FragColor = vec4(mix(uFogColor, col, f), alpha);
             }
         """
     }

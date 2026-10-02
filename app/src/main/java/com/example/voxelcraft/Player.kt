@@ -46,7 +46,8 @@ class Player {
         val bx = floor(x).toInt()
         val by = floor(y + 0.6).toInt()
         val bz = floor(z).toInt()
-        val inWater = world.getBlock(bx, by, bz) == Blocks.WATER
+        val inWater = world.getBlock(bx, by, bz) == Blocks.WATER ||
+            (y + 0.6 <= Config.SEA_LEVEL && world.getBlock(bx, floor(y).toInt(), bz) == Blocks.WATER)
 
         val speed = if (flying) FLY_SPEED else if (inWater) 3.5 else WALK_SPEED
         val dx = wx * speed * d
