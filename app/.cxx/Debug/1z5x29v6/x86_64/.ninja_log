@@ -1,0 +1,12 @@
+# ninja log v5
+3	216	1790920199606045816	CMakeFiles/voxelnative.dir/noise.c.o	be251beb0e2986a3
+1	1894	1790920201281896827	CMakeFiles/voxelnative.dir/terrain.cpp.o	1fa893a0c8f2c479
+2	1985	1790920201339644965	CMakeFiles/voxelnative.dir/mesher.cpp.o	ee5349399cf5232c
+0	2034	1790920201421099250	CMakeFiles/voxelnative.dir/native-lib.cpp.o	247bf2af455922fe
+2034	2129	1790920201513954088	/app/applet/app/build/intermediates/cxx/Debug/1z5x29v6/obj/x86_64/libvoxelnative.so	b46c93e6ec16161b
+41	885	1790920221925599316	CMakeFiles/voxelnative.dir/mesher.cpp.o	ee5349399cf5232c
+886	939	1790920221979161210	/app/applet/app/build/intermediates/cxx/Debug/1z5x29v6/obj/x86_64/libvoxelnative.so	b46c93e6ec16161b
+67	1814	1790922222217698975	CMakeFiles/voxelnative.dir/native-lib.cpp.o	247bf2af455922fe
+69	1871	1790922222225580611	CMakeFiles/voxelnative.dir/terrain.cpp.o	1fa893a0c8f2c479
+70	1980	1790922222385920860	CMakeFiles/voxelnative.dir/mesher.cpp.o	ee5349399cf5232c
+1980	2072	1790922222478130453	/app/applet/app/build/intermediates/cxx/Debug/1z5x29v6/obj/x86_64/libvoxelnative.so	b46c93e6ec16161b

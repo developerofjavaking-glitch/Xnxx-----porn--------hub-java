@@ -43,7 +43,7 @@ object Raycast {
             }
             if (t > maxDist) return null
             val b = world.getBlock(x, y, z)
-            if (b != Blocks.AIR && b != Blocks.WATER) return RayHit(x, y, z, px, py, pz)
+            if (b != Blocks.AIR && b != Blocks.WATER && b != Blocks.SEAGRASS) return RayHit(x, y, z, px, py, pz)
         }
     }
 }

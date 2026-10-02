@@ -1,0 +1,12 @@
+# ninja log v5
+13	256	1790920193678449140	CMakeFiles/voxelnative.dir/noise.c.o	eb7559c81a6b6edf
+2	2051	1790920195429753714	CMakeFiles/voxelnative.dir/terrain.cpp.o	c732d15e75c08d8d
+4	2072	1790920195492412476	CMakeFiles/voxelnative.dir/mesher.cpp.o	d5362dedabf79d69
+0	2173	1790920195592642296	CMakeFiles/voxelnative.dir/native-lib.cpp.o	de660dc0f413d5f9
+2173	2233	1790920195650392662	/app/applet/app/build/intermediates/cxx/Debug/1z5x29v6/obj/arm64-v8a/libvoxelnative.so	7a0417860c27ab00
+96	1494	1790920219593205494	CMakeFiles/voxelnative.dir/mesher.cpp.o	d5362dedabf79d69
+1495	1592	1790920219689776375	/app/applet/app/build/intermediates/cxx/Debug/1z5x29v6/obj/arm64-v8a/libvoxelnative.so	7a0417860c27ab00
+92	1984	1790922217989086711	CMakeFiles/voxelnative.dir/terrain.cpp.o	c732d15e75c08d8d
+91	2104	1790922218109256056	CMakeFiles/voxelnative.dir/native-lib.cpp.o	de660dc0f413d5f9
+95	2266	1790922218238036914	CMakeFiles/voxelnative.dir/mesher.cpp.o	d5362dedabf79d69
+2268	2319	1790922218325435460	/app/applet/app/build/intermediates/cxx/Debug/1z5x29v6/obj/arm64-v8a/libvoxelnative.so	7a0417860c27ab00

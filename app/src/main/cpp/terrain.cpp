@@ -61,18 +61,26 @@ void fillChunk(int8_t* blocks, int cx, int cz) {
     const int minWx = cx * CHUNK;
     const int minWz = cz * CHUNK;
 
-    // 1. Terrain and water bodies (sea and rivers)
+    // 1. Terrain, rivers, seas, and detailed seabed
     for (int x = 0; x < CHUNK; x++) {
         for (int z = 0; z < CHUNK; z++) {
             const int wx = minWx + x;
             const int wz = minWz + z;
             const int h = heightAt(wx, wz);
             const bool beach = h <= SEA_LEVEL + 2;
+            const bool isUnderwater = h < SEA_LEVEL;
+
+            const int seabedNoise = ((wx * 37 + wz * 19 + (wx ^ wz)) & 0xFF);
+            int8_t seabedBlock;
+            if (seabedNoise < 110) seabedBlock = SAND;
+            else if (seabedNoise < 190) seabedBlock = STONE;
+            else seabedBlock = DIRT;
 
             for (int y = 0; y <= h; y++) {
                 int8_t id;
                 if (y == 0) id = STONE;
                 else if (y < h - 4) id = STONE;
+                else if (isUnderwater) id = (y >= h - 2) ? seabedBlock : STONE;
                 else if (y < h) id = beach ? SAND : DIRT;
                 else if (beach) id = SAND;
                 else if (h >= 52) id = SNOW;
@@ -81,25 +89,35 @@ void fillChunk(int8_t* blocks, int cx, int cz) {
                 blocks[blockIndex(x, y, z)] = id;
             }
 
-            // Fill water up to SEA_LEVEL for seas and carved rivers
-            if (h < SEA_LEVEL) {
+            // Fill water and underwater seagrass meadows
+            if (isUnderwater) {
+                const int depth = SEA_LEVEL - h;
+                const bool hasSeagrass = (depth >= 2 && depth <= 6 && (seabedNoise % 5 == 0));
+
                 for (int y = h + 1; y <= SEA_LEVEL; y++) {
                     blocks[blockIndex(x, y, z)] = static_cast<int8_t>(WATER);
+                }
+
+                if (hasSeagrass && h + 1 <= SEA_LEVEL) {
+                    blocks[blockIndex(x, h + 1, z)] = static_cast<int8_t>(SEAGRASS);
+                    if (depth >= 4 && h + 2 < SEA_LEVEL) {
+                        blocks[blockIndex(x, h + 2, z)] = static_cast<int8_t>(SEAGRASS);
+                    }
                 }
             }
         }
     }
 
-    // 2. Tree trunks and leaf canopies
-    const int minCellX = floorDiv(minWx - 3, 7);
-    const int maxCellX = floorDiv(minWx + CHUNK + 2, 7);
-    const int minCellZ = floorDiv(minWz - 3, 7);
-    const int maxCellZ = floorDiv(minWz + CHUNK + 2, 7);
+    // 2. Multi-tier detailed tree canopies
+    const int minCellX = floorDiv(minWx - 4, 7);
+    const int maxCellX = floorDiv(minWx + CHUNK + 3, 7);
+    const int minCellZ = floorDiv(minWz - 4, 7);
+    const int maxCellZ = floorDiv(minWz + CHUNK + 3, 7);
 
     for (int cellX = minCellX; cellX <= maxCellX; cellX++) {
         for (int cellZ = minCellZ; cellZ <= maxCellZ; cellZ++) {
-            const int64_t th = treeHash(cellX, cellZ);
-            if ((th & 0xFF) % 100 >= 45) continue;
+            int64_t th = treeHash(cellX, cellZ);
+            if ((th & 0xFF) % 100 >= 50) continue;
 
             const int offsetX = static_cast<int>((th >> 8) & 3);
             const int offsetZ = static_cast<int>((th >> 12) & 3);
@@ -110,7 +128,9 @@ void fillChunk(int8_t* blocks, int cx, int cz) {
             if (groundH <= SEA_LEVEL + 2 || groundH >= 44) continue;
             if (riverValue(tx, tz) < 0.055) continue;
 
-            const int trunkHeight = 4 + static_cast<int>((th >> 16) & 1);
+            const bool isPine = ((th >> 20) & 1) == 1;
+            const int trunkHeight = isPine ? (7 + static_cast<int>((th >> 16) & 3))
+                                           : (5 + static_cast<int>((th >> 16) & 1));
             const int topY = groundH + trunkHeight;
 
             const int lx = tx - minWx;
@@ -138,27 +158,41 @@ void fillChunk(int8_t* blocks, int cx, int cz) {
                 }
             };
 
-            // Lower canopy (5x5 without corners)
-            for (int ly = topY - 2; ly <= topY - 1; ly++) {
-                for (int dx = -2; dx <= 2; dx++) {
-                    for (int dz = -2; dz <= 2; dz++) {
-                        if (std::abs(dx) == 2 && std::abs(dz) == 2) continue;
-                        placeLeaf(tx + dx, ly, tz + dz);
+            if (isPine) {
+                for (int ly = topY - 4; ly <= topY; ly++) {
+                    const int radius = ((topY - ly) % 2 == 0) ? 2 : 1;
+                    for (int dx = -radius; dx <= radius; dx++) {
+                        for (int dz = -radius; dz <= radius; dz++) {
+                            if (radius == 2 && std::abs(dx) == 2 && std::abs(dz) == 2) continue;
+                            placeLeaf(tx + dx, ly, tz + dz);
+                        }
                     }
                 }
-            }
-            // Upper canopy (3x3)
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dz = -1; dz <= 1; dz++) {
-                    placeLeaf(tx + dx, topY, tz + dz);
+                placeLeaf(tx, topY + 1, tz);
+            } else {
+                for (int ly = topY - 3; ly <= topY - 1; ly++) {
+                    for (int dx = -2; dx <= 2; dx++) {
+                        for (int dz = -2; dz <= 2; dz++) {
+                            if (std::abs(dx) == 2 && std::abs(dz) == 2 && ly != topY - 2) continue;
+                            placeLeaf(tx + dx, ly, tz + dz);
+                        }
+                    }
                 }
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        placeLeaf(tx + dx, topY, tz + dz);
+                    }
+                }
+                placeLeaf(tx, topY + 1, tz);
+                placeLeaf(tx + 1, topY + 1, tz);
+                placeLeaf(tx - 1, topY + 1, tz);
+                placeLeaf(tx, topY + 1, tz + 1);
+                placeLeaf(tx, topY + 1, tz - 1);
+                placeLeaf(tx + 2, topY - 4, tz);
+                placeLeaf(tx - 2, topY - 4, tz);
+                placeLeaf(tx, topY - 4, tz + 2);
+                placeLeaf(tx, topY - 4, tz - 2);
             }
-            // Top cross (+)
-            placeLeaf(tx, topY + 1, tz);
-            placeLeaf(tx + 1, topY + 1, tz);
-            placeLeaf(tx - 1, topY + 1, tz);
-            placeLeaf(tx, topY + 1, tz + 1);
-            placeLeaf(tx, topY + 1, tz - 1);
         }
     }
 }

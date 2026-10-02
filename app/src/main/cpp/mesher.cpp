@@ -20,6 +20,7 @@ const int DY[6] = {0, 0, 1, -1, 0, 0};
 const int DZ[6] = {0, 0, 0, 0, 1, -1};
 const float SHADE[6] = {0.80f, 0.80f, 1.0f, 0.5f, 0.65f, 0.65f};
 const int ORDER[6] = {0, 1, 2, 0, 2, 3};
+const int INVERT_ORDER[6] = {0, 2, 1, 0, 3, 2};
 
 constexpr int MAX_BLOCK_TYPES = 256;
 int g_top[MAX_BLOCK_TYPES];
@@ -60,9 +61,12 @@ inline bool isFaceCulled(const Ctx& c, int id, int x, int y, int z) {
     }
     if (nid == AIR) return false;
     if (id == WATER) {
-        return nid == WATER || nid != AIR;
+        return nid == WATER || nid == SEAGRASS || nid != AIR;
     }
-    if (nid == WATER) return false;
+    if (id == SEAGRASS) {
+        return nid != AIR && nid != WATER;
+    }
+    if (nid == WATER || nid == SEAGRASS) return false;
     return true;
 }
 
@@ -105,6 +109,17 @@ int buildMesh(const int8_t* self, const int8_t* xp, const int8_t* xm, const int8
                         out.push_back(r);
                         out.push_back(g);
                         out.push_back(b);
+                    }
+                    if (id == WATER && f == 2) {
+                        for (int i = 0; i < 6; i++) {
+                            const int o = INVERT_ORDER[i];
+                            out.push_back(static_cast<float>(x) + v[o * 3]);
+                            out.push_back(static_cast<float>(y) + v[o * 3 + 1]);
+                            out.push_back(static_cast<float>(z) + v[o * 3 + 2]);
+                            out.push_back(r * 0.9f);
+                            out.push_back(g * 0.95f);
+                            out.push_back(b * 1.05f);
+                        }
                     }
                 }
             }

@@ -253,7 +253,63 @@ class HudView(context: Context, private val shared: Shared) : View(context) {
         textPaint.textAlign = Paint.Align.LEFT
 
         drawLogo(canvas, w, h)
+        drawUnderwaterHud(canvas, w, h, u)
         postInvalidateOnAnimation()
+    }
+
+    private fun drawUnderwaterHud(canvas: Canvas, w: Float, h: Float, u: Float) {
+        if (!shared.underwater) return
+
+        // 1. Soft aquatic screen border vignette
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = u * 0.45f
+        paint.color = Color.argb(45, 20, 140, 220)
+        canvas.drawRect(0f, 0f, w, h, paint)
+
+        // 2. Minecraft-style 10 oxygen breath bubbles
+        val timeMs = SystemClock.uptimeMillis()
+        val numBubbles = 10
+        val bubbleR = u * 0.14f
+        val bubbleSpacing = bubbleR * 2.3f
+        val totalWidth = numBubbles * bubbleSpacing
+        val startX = (w - totalWidth) / 2f + bubbleR
+        val bubbleY = h / 2f - u * 0.9f
+
+        for (i in 0 until numBubbles) {
+            val bx = startX + i * bubbleSpacing
+            val wobbleY = bubbleY + kotlin.math.sin((timeMs / 180.0) + i).toFloat() * (u * 0.03f)
+
+            // Outer bubble outline
+            iconPaint.style = Paint.Style.STROKE
+            iconPaint.strokeWidth = 2.5f
+            iconPaint.color = Color.argb(220, 160, 230, 255)
+            canvas.drawCircle(bx, wobbleY, bubbleR, iconPaint)
+
+            // Bubble body
+            iconFillPaint.color = Color.argb(80, 70, 170, 240)
+            canvas.drawCircle(bx, wobbleY, bubbleR, iconFillPaint)
+
+            // Specular shine dot
+            iconFillPaint.color = Color.argb(230, 255, 255, 255)
+            canvas.drawCircle(bx - bubbleR * 0.35f, wobbleY - bubbleR * 0.35f, bubbleR * 0.28f, iconFillPaint)
+        }
+
+        // 3. Gentle rising water bubbles in view
+        for (i in 0 until 6) {
+            val speed = 0.0003f + (i % 3) * 0.0001f
+            val cycle = (timeMs * speed + i * 0.17f) % 1.0f
+            val py = h * (1.0f - cycle)
+            val px = (w * 0.2f) + ((i * 197 % 1000) / 1000f) * (w * 0.6f) + kotlin.math.sin(timeMs * 0.003 + i).toFloat() * 15f
+            val r = (u * 0.06f) + (i % 3) * (u * 0.04f)
+
+            iconPaint.style = Paint.Style.STROKE
+            iconPaint.strokeWidth = 2f
+            iconPaint.color = Color.argb(140, 180, 240, 255)
+            canvas.drawCircle(px, py, r, iconPaint)
+
+            iconFillPaint.color = Color.argb(50, 100, 200, 255)
+            canvas.drawCircle(px, py, r, iconFillPaint)
+        }
     }
 
     private fun drawButtonSymbol(canvas: Canvas, b: Btn) {

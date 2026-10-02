@@ -21,6 +21,8 @@ class GameRenderer(private val shared: Shared) : GLSurfaceView.Renderer {
     private var uFogColor = 0
     private var uFogStart = 0
     private var uFogEnd = 0
+    private var uTime = 0
+    private var uUnderwater = 0
     private var aPos = 0
     private var aColor = 0
 
@@ -54,6 +56,8 @@ class GameRenderer(private val shared: Shared) : GLSurfaceView.Renderer {
         uFogColor = GLES20.glGetUniformLocation(program, "uFogColor")
         uFogStart = GLES20.glGetUniformLocation(program, "uFogStart")
         uFogEnd = GLES20.glGetUniformLocation(program, "uFogEnd")
+        uTime = GLES20.glGetUniformLocation(program, "uTime")
+        uUnderwater = GLES20.glGetUniformLocation(program, "uUnderwater")
         aPos = GLES20.glGetAttribLocation(program, "aPos")
         aColor = GLES20.glGetAttribLocation(program, "aColor")
 
@@ -111,13 +115,41 @@ class GameRenderer(private val shared: Shared) : GLSurfaceView.Renderer {
         Matrix.multiplyMM(vp, 0, proj, 0, view, 0)
         extractFrustum(vp)
 
+        // Check if camera eye is submerged underwater
+        val eyeBx = Math.floor(ex).toInt()
+        val eyeBy = Math.floor(ey).toInt()
+        val eyeBz = Math.floor(ez).toInt()
+        val blockAtEye = world.getBlock(eyeBx, eyeBy, eyeBz)
+        val isUnderwater = blockAtEye == Blocks.WATER || (ey < Config.SEA_LEVEL && world.getBlock(eyeBx, Math.floor(ey - 0.4).toInt(), eyeBz) == Blocks.WATER)
+        shared.underwater = isUnderwater
+
+        val waterFogR = 0.05f
+        val waterFogG = 0.22f
+        val waterFogB = 0.40f
+
+        if (isUnderwater) {
+            GLES20.glClearColor(waterFogR, waterFogG, waterFogB, 1f)
+        } else {
+            GLES20.glClearColor(skyR, skyG, skyB, 1f)
+        }
+
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glUseProgram(program)
         GLES20.glUniformMatrix4fv(uVP, 1, false, vp, 0)
         val fogEnd = Config.RENDER_RADIUS * Config.CHUNK_SIZE - 6f
-        GLES20.glUniform3f(uFogColor, skyR, skyG, skyB)
-        GLES20.glUniform1f(uFogStart, fogEnd * 0.55f)
-        GLES20.glUniform1f(uFogEnd, fogEnd)
+        if (isUnderwater) {
+            GLES20.glUniform3f(uFogColor, waterFogR, waterFogG, waterFogB)
+            GLES20.glUniform1f(uFogStart, 0.5f)
+            GLES20.glUniform1f(uFogEnd, 20.0f)
+            GLES20.glUniform1f(uUnderwater, 1.0f)
+        } else {
+            GLES20.glUniform3f(uFogColor, skyR, skyG, skyB)
+            GLES20.glUniform1f(uFogStart, fogEnd * 0.55f)
+            GLES20.glUniform1f(uFogEnd, fogEnd)
+            GLES20.glUniform1f(uUnderwater, 0.0f)
+        }
+        val elapsedSec = (System.nanoTime() / 1_000_000 % 3600000) / 1000f
+        GLES20.glUniform1f(uTime, elapsedSec)
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glEnableVertexAttribArray(aColor)
 
@@ -260,10 +292,14 @@ class GameRenderer(private val shared: Shared) : GLSurfaceView.Renderer {
             attribute vec3 aColor;
             varying vec3 vColor;
             varying float vDist;
+            varying vec3 vLocalPos;
+            varying vec3 vWorldPos;
             void main() {
                 vec3 p = aPos + uOffset;
                 vDist = length(p);
                 vColor = aColor;
+                vLocalPos = aPos;
+                vWorldPos = p;
                 gl_Position = uVP * vec4(p, 1.0);
             }
         """
@@ -272,12 +308,74 @@ class GameRenderer(private val shared: Shared) : GLSurfaceView.Renderer {
             precision mediump float;
             varying vec3 vColor;
             varying float vDist;
+            varying vec3 vLocalPos;
+            varying vec3 vWorldPos;
             uniform vec3 uFogColor;
             uniform float uFogStart;
             uniform float uFogEnd;
+            uniform float uTime;
+            uniform float uUnderwater;
+
+            float hash2(vec2 p) {
+                p = fract(p * vec2(123.34, 456.21));
+                p += dot(p, p + 45.32);
+                return fract(p.x * p.y);
+            }
+
             void main() {
+                vec3 col = vColor;
+
+                // Detect if current block is foliage / leaves
+                bool isLeaves = (vColor.g > 0.28 && vColor.g > vColor.r * 1.25 && vColor.g > vColor.b * 1.25 && vColor.r < 0.35);
+
+                // Detect if current block is water
+                bool isWater = (vColor.b > 0.45 && vColor.b > vColor.r * 1.5 && vColor.g > 0.25);
+
+                if (isLeaves) {
+                    // Minecraft 16x16 pixel-art leaf texture
+                    vec3 bCoord = floor(vLocalPos);
+                    vec3 fCoord = fract(vLocalPos);
+                    vec2 uv = fract(fCoord.xy + fCoord.yz + fCoord.xz);
+                    vec2 pixel = floor(uv * 16.0);
+                    float h = hash2(pixel + bCoord.xy * 7.0 + bCoord.z * 13.0);
+
+                    if (h < 0.20) {
+                        col *= 0.65; // dark leaf shadow / cutout void
+                    } else if (h < 0.48) {
+                        col *= 0.85; // deep emerald foliage
+                    } else if (h < 0.78) {
+                        col *= 1.05; // lush standard foliage
+                    } else if (h < 0.94) {
+                        col = mix(col * 1.28, vec3(0.35, 0.68, 0.24), 0.4); // bright sunlit leaf edge
+                    } else {
+                        col = vec3(0.30, 0.46, 0.18); // twig / vein detail
+                    }
+                } else if (isWater) {
+                    // Animated surface wave shimmer
+                    float wave = sin(vWorldPos.x * 2.2 + uTime * 2.8) * cos(vWorldPos.z * 2.2 + uTime * 2.2);
+                    col += vec3(wave * 0.04, wave * 0.07, wave * 0.10);
+                }
+
+                // Underwater atmosphere & effects (Minecraft style)
+                if (uUnderwater > 0.5) {
+                    // Water light absorption (reds fade out, cool blues & aquas dominate)
+                    col.r *= 0.42;
+                    col.g = col.g * 0.88 + 0.04;
+                    col.b = col.b * 1.15 + 0.08;
+
+                    // Animated dancing sunlight caustics on underwater terrain & seabed
+                    float c1 = sin(vWorldPos.x * 1.8 + vWorldPos.z * 1.4 + uTime * 3.2);
+                    float c2 = cos(vWorldPos.x * 1.2 - vWorldPos.z * 2.0 + uTime * 2.7);
+                    float caustic = max(0.0, c1 * c2) * 0.22;
+                    col += vec3(caustic * 0.35, caustic * 0.75, caustic * 1.1);
+
+                    // Ambient ocean tint
+                    col = mix(col, vec3(0.05, 0.24, 0.42), 0.18);
+                }
+
+                // Distance fog: atmospheric haze in air, dense cyan-blue ocean fog underwater
                 float f = clamp((uFogEnd - vDist) / (uFogEnd - uFogStart), 0.0, 1.0);
-                gl_FragColor = vec4(mix(uFogColor, vColor, f), 1.0);
+                gl_FragColor = vec4(mix(uFogColor, col, f), 1.0);
             }
         """
     }

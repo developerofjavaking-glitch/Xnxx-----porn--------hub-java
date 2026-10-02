@@ -4,7 +4,7 @@ import kotlin.math.abs
 
 object Terrain {
 
-    private class TreeInfo(val x: Int, val z: Int, val groundH: Int, val trunkHeight: Int)
+    private class TreeInfo(val x: Int, val z: Int, val groundH: Int, val trunkHeight: Int, val isPine: Boolean)
 
     fun riverValue(wx: Int, wz: Int): Double {
         val x = wx.toDouble()
@@ -22,8 +22,8 @@ object Terrain {
 
     private fun getTree(cellX: Int, cellZ: Int): TreeInfo? {
         val th = treeHash(cellX, cellZ)
-        // ~45% of cells have a tree
-        if ((th and 0xFF) % 100 >= 45) return null
+        // ~50% of cells have a tree
+        if ((th and 0xFF) % 100 >= 50) return null
 
         val offsetX = ((th ushr 8) and 3).toInt()
         val offsetZ = ((th ushr 12) and 3).toInt()
@@ -35,8 +35,9 @@ object Terrain {
         if (groundH <= Config.SEA_LEVEL + 2 || groundH >= 44) return null
         if (riverValue(tx, tz) < 0.055) return null
 
-        val trunkHeight = 4 + ((th ushr 16) and 1).toInt()
-        return TreeInfo(tx, tz, groundH, trunkHeight)
+        val isPine = ((th ushr 20) and 1) == 1L
+        val trunkHeight = if (isPine) (7 + ((th ushr 16) and 3).toInt()) else (5 + ((th ushr 16) and 1).toInt())
+        return TreeInfo(tx, tz, groundH, trunkHeight, isPine)
     }
 
     fun heightAt(wx: Int, wz: Int): Int {
@@ -70,18 +71,28 @@ object Terrain {
         val minWx = c.cx * s
         val minWz = c.cz * s
 
-        // 1. Terrain and water bodies (sea and rivers)
+        // 1. Terrain, rivers, seas, and detailed seabed
         for (x in 0 until s) {
             for (z in 0 until s) {
                 val wx = minWx + x
                 val wz = minWz + z
                 val h = heightAt(wx, wz)
                 val beach = h <= Config.SEA_LEVEL + 2
+                val isUnderwater = h < Config.SEA_LEVEL
+
+                // Detailed seabed composition using local noise
+                val seabedNoise = ((wx * 37 + wz * 19 + (wx xor wz)) and 0xFF)
+                val seabedBlock = when {
+                    seabedNoise < 110 -> Blocks.SAND       // 43% golden sand
+                    seabedNoise < 190 -> Blocks.STONE      // 31% river gravel/rock
+                    else -> Blocks.DIRT                    // 26% river silt/clay
+                }
 
                 for (y in 0..h) {
                     val id = when {
                         y == 0 -> Blocks.STONE
                         y < h - 4 -> Blocks.STONE
+                        isUnderwater -> if (y >= h - 2) seabedBlock else Blocks.STONE
                         y < h -> if (beach) Blocks.SAND else Blocks.DIRT
                         beach -> Blocks.SAND
                         h >= 52 -> Blocks.SNOW
@@ -91,20 +102,31 @@ object Terrain {
                     c.blocks[c.index(x, y, z)] = id.toByte()
                 }
 
-                // Fill water up to SEA_LEVEL for seas and carved rivers
-                if (h < Config.SEA_LEVEL) {
+                // Fill water and underwater seagrass meadows
+                if (isUnderwater) {
+                    val depth = Config.SEA_LEVEL - h
+                    // Seagrass spawn chance in shallow to mid waters (2..6 blocks deep)
+                    val hasSeagrass = depth in 2..6 && (seabedNoise % 5 == 0)
+
                     for (y in (h + 1)..Config.SEA_LEVEL) {
                         c.blocks[c.index(x, y, z)] = Blocks.WATER.toByte()
+                    }
+
+                    if (hasSeagrass && h + 1 <= Config.SEA_LEVEL) {
+                        c.blocks[c.index(x, h + 1, z)] = Blocks.SEAGRASS.toByte()
+                        if (depth >= 4 && h + 2 < Config.SEA_LEVEL) {
+                            c.blocks[c.index(x, h + 2, z)] = Blocks.SEAGRASS.toByte()
+                        }
                     }
                 }
             }
         }
 
-        // 2. Tree trunks and leaf canopies
-        val minCellX = Math.floorDiv(minWx - 3, 7)
-        val maxCellX = Math.floorDiv(minWx + s + 2, 7)
-        val minCellZ = Math.floorDiv(minWz - 3, 7)
-        val maxCellZ = Math.floorDiv(minWz + s + 2, 7)
+        // 2. Multi-tier detailed tree canopies
+        val minCellX = Math.floorDiv(minWx - 4, 7)
+        val maxCellX = Math.floorDiv(minWx + s + 3, 7)
+        val minCellZ = Math.floorDiv(minWz - 4, 7)
+        val maxCellZ = Math.floorDiv(minWz + s + 3, 7)
 
         for (cellX in minCellX..maxCellX) {
             for (cellZ in minCellZ..maxCellZ) {
@@ -128,7 +150,6 @@ object Terrain {
                     c.blocks[c.index(lx, groundH, lz)] = Blocks.DIRT.toByte()
                 }
 
-                // Helper to safely place a leaf block
                 fun placeLeaf(wx: Int, wy: Int, wz: Int) {
                     val px = wx - minWx
                     val pz = wz - minWz
@@ -140,27 +161,45 @@ object Terrain {
                     }
                 }
 
-                // Lower canopy layers (5x5 without outer corners)
-                for (ly in (topY - 2)..(topY - 1)) {
-                    for (dx in -2..2) {
-                        for (dz in -2..2) {
-                            if (abs(dx) == 2 && abs(dz) == 2) continue
-                            placeLeaf(tx + dx, ly, tz + dz)
+                if (tree.isPine) {
+                    // Tiered pine foliage
+                    for (ly in (topY - 4)..topY) {
+                        val radius = if ((topY - ly) % 2 == 0) 2 else 1
+                        for (dx in -radius..radius) {
+                            for (dz in -radius..radius) {
+                                if (radius == 2 && abs(dx) == 2 && abs(dz) == 2) continue
+                                placeLeaf(tx + dx, ly, tz + dz)
+                            }
                         }
                     }
-                }
-                // Upper canopy layer (3x3)
-                for (dx in -1..1) {
-                    for (dz in -1..1) {
-                        placeLeaf(tx + dx, topY, tz + dz)
+                    placeLeaf(tx, topY + 1, tz)
+                } else {
+                    // Lush Oak foliage with overhangs
+                    for (ly in (topY - 3)..(topY - 1)) {
+                        for (dx in -2..2) {
+                            for (dz in -2..2) {
+                                if (abs(dx) == 2 && abs(dz) == 2 && ly != topY - 2) continue
+                                placeLeaf(tx + dx, ly, tz + dz)
+                            }
+                        }
                     }
+                    for (dx in -1..1) {
+                        for (dz in -1..1) {
+                            placeLeaf(tx + dx, topY, tz + dz)
+                        }
+                    }
+                    // Cross cap + random corner foliage
+                    placeLeaf(tx, topY + 1, tz)
+                    placeLeaf(tx + 1, topY + 1, tz)
+                    placeLeaf(tx - 1, topY + 1, tz)
+                    placeLeaf(tx, topY + 1, tz + 1)
+                    placeLeaf(tx, topY + 1, tz - 1)
+                    // Hanging leaf accents
+                    placeLeaf(tx + 2, topY - 4, tz)
+                    placeLeaf(tx - 2, topY - 4, tz)
+                    placeLeaf(tx, topY - 4, tz + 2)
+                    placeLeaf(tx, topY - 4, tz - 2)
                 }
-                // Top cross (+)
-                placeLeaf(tx, topY + 1, tz)
-                placeLeaf(tx + 1, topY + 1, tz)
-                placeLeaf(tx - 1, topY + 1, tz)
-                placeLeaf(tx, topY + 1, tz + 1)
-                placeLeaf(tx, topY + 1, tz - 1)
             }
         }
     }

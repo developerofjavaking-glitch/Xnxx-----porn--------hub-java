@@ -31,6 +31,7 @@ object Mesher {
     private val DZ = intArrayOf(0, 0, 0, 0, 1, -1)
     private val SHADE = floatArrayOf(0.80f, 0.80f, 1.0f, 0.5f, 0.65f, 0.65f)
     private val ORDER = intArrayOf(0, 1, 2, 0, 2, 3)
+    private val INVERTED_ORDER = intArrayOf(0, 2, 1, 0, 3, 2)
 
     private fun hash(x: Int, y: Int, z: Int): Float {
         var h = (x * 73856093) xor (y * 19349663) xor (z * 83492791)
@@ -61,9 +62,12 @@ object Mesher {
         }
         if (nid == Blocks.AIR) return false
         if (id == Blocks.WATER) {
-            return nid == Blocks.WATER || nid != Blocks.AIR
+            return nid == Blocks.WATER || nid == Blocks.SEAGRASS || nid != Blocks.AIR
         }
-        if (nid == Blocks.WATER) return false
+        if (id == Blocks.SEAGRASS) {
+            return nid != Blocks.AIR && nid != Blocks.WATER
+        }
+        if (nid == Blocks.WATER || nid == Blocks.SEAGRASS) return false
         return true
     }
 
@@ -116,6 +120,12 @@ object Mesher {
                         val v = FACE_V[f]
                         for (i in ORDER) {
                             out.add6(x + v[i * 3], y + v[i * 3 + 1], z + v[i * 3 + 2], r, g, b)
+                        }
+                        // Render two-sided water surface so looking up from underwater renders water surface
+                        if (id == Blocks.WATER && f == 2) {
+                            for (i in INVERTED_ORDER) {
+                                out.add6(x + v[i * 3], y + v[i * 3 + 1], z + v[i * 3 + 2], r * 0.9f, g * 0.95f, b * 1.05f)
+                            }
                         }
                     }
                 }

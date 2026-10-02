@@ -45,4 +45,5 @@ class Shared {
     @Volatile var hudText = ""
     @Volatile var flying = false
     @Volatile var blockIndex = 0
+    @Volatile var underwater = false
 }

@@ -23,7 +23,8 @@ enum Block : int8_t {
     WOOD = 6,
     BRICK = 7,
     LEAVES = 8,
-    WATER = 9
+    WATER = 9,
+    SEAGRASS = 10
 };
 
 inline int blockIndex(int x, int y, int z) { return (x * CHUNK + z) * HEIGHT + y; }
