@@ -1,0 +1,6 @@
+{
+  "name": "VoxelCraft",
+  "description": "A 3D voxel sandbox game built with OpenGL ES.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
