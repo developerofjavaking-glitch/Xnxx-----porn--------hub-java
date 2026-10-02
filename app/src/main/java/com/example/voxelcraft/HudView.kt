@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.os.SystemClock
 import android.view.MotionEvent
@@ -16,7 +17,7 @@ import kotlin.math.min
 /** Touch controls drawn on top of the GL view: joystick, look area, buttons, crosshair, stats. */
 class HudView(context: Context, private val shared: Shared) : View(context) {
 
-    private class Btn(val id: Int, val label: String) {
+    private class Btn(val id: Int) {
         var cx = 0f
         var cy = 0f
         var r = 0f
@@ -33,8 +34,8 @@ class HudView(context: Context, private val shared: Shared) : View(context) {
     }
 
     private val buttons = listOf(
-        Btn(JUMP, "JUMP"), Btn(DOWN, "DOWN"), Btn(BREAK, "BREAK"),
-        Btn(PLACE, "PLACE"), Btn(FLY, "FLY"), Btn(BLOCK, "BLOCK")
+        Btn(JUMP), Btn(DOWN), Btn(BREAK),
+        Btn(PLACE), Btn(FLY), Btn(BLOCK)
     )
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -42,6 +43,19 @@ class HudView(context: Context, private val shared: Shared) : View(context) {
         color = Color.WHITE
         setShadowLayer(4f, 1f, 1f, Color.BLACK)
     }
+
+    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    private val iconFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+    private val symbolPath = Path()
+    private val symbolRect = RectF()
 
     private val logo: Bitmap? = BitmapFactory.decodeResource(resources, R.drawable.logo)
     private val logoPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
@@ -228,19 +242,171 @@ class HudView(context: Context, private val shared: Shared) : View(context) {
         for (b in buttons) {
             val active = b.pointer != -1 || (b.id == FLY && shared.flying)
             paint.style = Paint.Style.FILL
-            paint.color = if (active) Color.argb(150, 90, 140, 255) else Color.argb(80, 255, 255, 255)
+            paint.color = if (active) Color.argb(170, 70, 130, 240) else Color.argb(85, 255, 255, 255)
             canvas.drawCircle(b.cx, b.cy, b.r, paint)
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 3f
-            paint.color = Color.argb(160, 255, 255, 255)
+            paint.strokeWidth = 3.5f
+            paint.color = if (active) Color.argb(220, 100, 180, 255) else Color.argb(170, 255, 255, 255)
             canvas.drawCircle(b.cx, b.cy, b.r, paint)
-            textPaint.textSize = b.r * 0.5f
-            canvas.drawText(b.label, b.cx, b.cy + b.r * 0.18f, textPaint)
+            drawButtonSymbol(canvas, b)
         }
         textPaint.textAlign = Paint.Align.LEFT
 
         drawLogo(canvas, w, h)
         postInvalidateOnAnimation()
+    }
+
+    private fun drawButtonSymbol(canvas: Canvas, b: Btn) {
+        val cx = b.cx
+        val cy = b.cy
+        val r = b.r
+        when (b.id) {
+            JUMP -> {
+                val s = r * 0.44f
+                iconPaint.strokeWidth = r * 0.13f
+                iconPaint.color = Color.WHITE
+                iconPaint.style = Paint.Style.STROKE
+                // Up arrow shaft
+                canvas.drawLine(cx, cy + s * 0.45f, cx, cy - s * 0.6f, iconPaint)
+                // Arrowhead
+                symbolPath.reset()
+                symbolPath.moveTo(cx - s * 0.55f, cy - s * 0.1f)
+                symbolPath.lineTo(cx, cy - s * 0.65f)
+                symbolPath.lineTo(cx + s * 0.55f, cy - s * 0.1f)
+                canvas.drawPath(symbolPath, iconPaint)
+                // Jump ground line
+                canvas.drawLine(cx - s * 0.55f, cy + s * 0.75f, cx + s * 0.55f, cy + s * 0.75f, iconPaint)
+            }
+            DOWN -> {
+                val s = r * 0.44f
+                iconPaint.strokeWidth = r * 0.13f
+                iconPaint.color = Color.WHITE
+                iconPaint.style = Paint.Style.STROKE
+                // Down arrow shaft
+                canvas.drawLine(cx, cy - s * 0.45f, cx, cy + s * 0.6f, iconPaint)
+                // Arrowhead
+                symbolPath.reset()
+                symbolPath.moveTo(cx - s * 0.55f, cy + s * 0.1f)
+                symbolPath.lineTo(cx, cy + s * 0.65f)
+                symbolPath.lineTo(cx + s * 0.55f, cy + s * 0.1f)
+                canvas.drawPath(symbolPath, iconPaint)
+                // Top barrier line
+                canvas.drawLine(cx - s * 0.55f, cy - s * 0.75f, cx + s * 0.55f, cy - s * 0.75f, iconPaint)
+            }
+            BREAK -> {
+                // Pickaxe icon
+                val s = r * 0.48f
+                // Wood handle
+                iconPaint.strokeWidth = r * 0.12f
+                iconPaint.color = Color.rgb(225, 185, 130)
+                iconPaint.style = Paint.Style.STROKE
+                canvas.drawLine(cx - s * 0.5f, cy + s * 0.55f, cx + s * 0.3f, cy - s * 0.25f, iconPaint)
+                // Metal curved pickaxe head
+                iconPaint.strokeWidth = r * 0.14f
+                iconPaint.color = Color.WHITE
+                symbolPath.reset()
+                symbolPath.moveTo(cx - s * 0.35f, cy - s * 0.65f)
+                symbolPath.quadTo(cx + s * 0.35f, cy - s * 0.35f, cx + s * 0.65f, cy + s * 0.35f)
+                canvas.drawPath(symbolPath, iconPaint)
+            }
+            PLACE -> {
+                // Block with + symbol
+                val s = r * 0.44f
+                iconPaint.strokeWidth = r * 0.11f
+                iconPaint.color = Color.WHITE
+                iconPaint.style = Paint.Style.STROKE
+                symbolRect.set(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f)
+                canvas.drawRoundRect(symbolRect, s * 0.22f, s * 0.22f, iconPaint)
+                // Bold Plus inside
+                iconPaint.strokeWidth = r * 0.15f
+                canvas.drawLine(cx - s * 0.42f, cy, cx + s * 0.42f, cy, iconPaint)
+                canvas.drawLine(cx, cy - s * 0.42f, cx, cy + s * 0.42f, iconPaint)
+            }
+            FLY -> {
+                // Wings symbol
+                val s = r * 0.52f
+                iconPaint.style = Paint.Style.STROKE
+                iconPaint.strokeWidth = r * 0.12f
+                iconPaint.color = if (shared.flying) Color.rgb(255, 235, 100) else Color.WHITE
+                // Left wing
+                symbolPath.reset()
+                symbolPath.moveTo(cx - s * 0.15f, cy + s * 0.2f)
+                symbolPath.cubicTo(cx - s * 0.4f, cy - s * 0.15f, cx - s * 0.75f, cy - s * 0.4f, cx - s * 0.85f, cy - s * 0.65f)
+                symbolPath.cubicTo(cx - s * 0.55f, cy - s * 0.35f, cx - s * 0.3f, cy - s * 0.1f, cx - s * 0.15f, cy)
+                canvas.drawPath(symbolPath, iconPaint)
+                // Right wing
+                symbolPath.reset()
+                symbolPath.moveTo(cx + s * 0.15f, cy + s * 0.2f)
+                symbolPath.cubicTo(cx + s * 0.4f, cy - s * 0.15f, cx + s * 0.75f, cy - s * 0.4f, cx + s * 0.85f, cy - s * 0.65f)
+                symbolPath.cubicTo(cx + s * 0.55f, cy - s * 0.35f, cx + s * 0.3f, cy - s * 0.1f, cx + s * 0.15f, cy)
+                canvas.drawPath(symbolPath, iconPaint)
+                // Center body
+                iconFillPaint.color = iconPaint.color
+                canvas.drawCircle(cx, cy, s * 0.16f, iconFillPaint)
+            }
+            BLOCK -> {
+                // Isometric 3D Voxel block preview
+                val sel = Blocks.palette[shared.blockIndex % Blocks.palette.size]
+                val s = r * 0.44f
+
+                // Top face
+                symbolPath.reset()
+                symbolPath.moveTo(cx, cy - s * 0.7f)
+                symbolPath.lineTo(cx + s * 0.6f, cy - s * 0.35f)
+                symbolPath.lineTo(cx, cy)
+                symbolPath.lineTo(cx - s * 0.6f, cy - s * 0.35f)
+                symbolPath.close()
+                val topCol = Blocks.top[sel]
+                iconFillPaint.color = Color.rgb((topCol shr 16) and 255, (topCol shr 8) and 255, topCol and 255)
+                canvas.drawPath(symbolPath, iconFillPaint)
+
+                // Left face
+                symbolPath.reset()
+                symbolPath.moveTo(cx - s * 0.6f, cy - s * 0.35f)
+                symbolPath.lineTo(cx, cy)
+                symbolPath.lineTo(cx, cy + s * 0.65f)
+                symbolPath.lineTo(cx - s * 0.6f, cy + s * 0.3f)
+                symbolPath.close()
+                val sideCol = Blocks.side[sel]
+                val sr = ((sideCol shr 16) and 255) * 0.85f
+                val sg = ((sideCol shr 8) and 255) * 0.85f
+                val sb = (sideCol and 255) * 0.85f
+                iconFillPaint.color = Color.rgb(sr.toInt(), sg.toInt(), sb.toInt())
+                canvas.drawPath(symbolPath, iconFillPaint)
+
+                // Right face
+                symbolPath.reset()
+                symbolPath.moveTo(cx + s * 0.6f, cy - s * 0.35f)
+                symbolPath.lineTo(cx, cy)
+                symbolPath.lineTo(cx, cy + s * 0.65f)
+                symbolPath.lineTo(cx + s * 0.6f, cy + s * 0.3f)
+                symbolPath.close()
+                val dr = ((sideCol shr 16) and 255) * 0.65f
+                val dg = ((sideCol shr 8) and 255) * 0.65f
+                val db = (sideCol and 255) * 0.65f
+                iconFillPaint.color = Color.rgb(dr.toInt(), dg.toInt(), db.toInt())
+                canvas.drawPath(symbolPath, iconFillPaint)
+
+                // Outer wireframe edges
+                iconPaint.strokeWidth = 2.5f
+                iconPaint.color = Color.WHITE
+                iconPaint.style = Paint.Style.STROKE
+                symbolPath.reset()
+                symbolPath.moveTo(cx, cy - s * 0.7f)
+                symbolPath.lineTo(cx + s * 0.6f, cy - s * 0.35f)
+                symbolPath.lineTo(cx + s * 0.6f, cy + s * 0.3f)
+                symbolPath.lineTo(cx, cy + s * 0.65f)
+                symbolPath.lineTo(cx - s * 0.6f, cy + s * 0.3f)
+                symbolPath.lineTo(cx - s * 0.6f, cy - s * 0.35f)
+                symbolPath.close()
+                canvas.drawPath(symbolPath, iconPaint)
+
+                // Inner Y-lines connecting to center
+                canvas.drawLine(cx, cy, cx, cy + s * 0.65f, iconPaint)
+                canvas.drawLine(cx, cy, cx - s * 0.6f, cy - s * 0.35f, iconPaint)
+                canvas.drawLine(cx, cy, cx + s * 0.6f, cy - s * 0.35f, iconPaint)
+            }
+        }
     }
 
     /** Title logo: fully visible for 2.5 s, then fades out over 1 s. */

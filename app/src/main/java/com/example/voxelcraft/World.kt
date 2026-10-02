@@ -58,13 +58,14 @@ class World {
         return c.blocks[c.index(x and 15, y, z and 15)].toInt()
     }
 
-    /** Collision query: unloaded terrain and the world floor count as solid. */
+    /** Collision query: unloaded terrain and the world floor count as solid. Water is non-solid. */
     fun isSolid(x: Int, y: Int, z: Int): Boolean {
         if (y < 0) return true
         if (y >= Config.WORLD_HEIGHT) return false
         val c = getChunk(x shr 4, z shr 4) ?: return true
         if (!c.dataReady) return true
-        return c.blocks[c.index(x and 15, y, z and 15)].toInt() != 0
+        val b = c.blocks[c.index(x and 15, y, z and 15)].toInt()
+        return b != Blocks.AIR && b != Blocks.WATER
     }
 
     fun setBlock(x: Int, y: Int, z: Int, id: Int) {

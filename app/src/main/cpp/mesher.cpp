@@ -43,17 +43,27 @@ struct Ctx {
     const int8_t* zm;
 };
 
-inline bool isSolid(const Ctx& c, int x, int y, int z) {
+inline bool isFaceCulled(const Ctx& c, int id, int x, int y, int z) {
     if (y < 0) return true;
     if (y >= HEIGHT) return false;
-    if (x >= 0 && x < CHUNK && z >= 0 && z < CHUNK) return c.self[blockIndex(x, y, z)] != 0;
-    const int8_t* n;
-    if (x < 0) n = c.xm;
-    else if (x >= CHUNK) n = c.xp;
-    else if (z < 0) n = c.zm;
-    else n = c.zp;
-    if (n == nullptr) return true;  // neighbour not available: hide the face
-    return n[blockIndex(x & (CHUNK - 1), y, z & (CHUNK - 1))] != 0;
+    int nid;
+    if (x >= 0 && x < CHUNK && z >= 0 && z < CHUNK) {
+        nid = c.self[blockIndex(x, y, z)];
+    } else {
+        const int8_t* n;
+        if (x < 0) n = c.xm;
+        else if (x >= CHUNK) n = c.xp;
+        else if (z < 0) n = c.zm;
+        else n = c.zp;
+        if (n == nullptr) return true;  // neighbour not available: hide the face
+        nid = n[blockIndex(x & (CHUNK - 1), y, z & (CHUNK - 1))];
+    }
+    if (nid == AIR) return false;
+    if (id == WATER) {
+        return nid == WATER || nid != AIR;
+    }
+    if (nid == WATER) return false;
+    return true;
 }
 
 }  // namespace
@@ -80,7 +90,7 @@ int buildMesh(const int8_t* self, const int8_t* xp, const int8_t* xm, const int8
                 if (id <= 0 || id >= MAX_BLOCK_TYPES) continue;
                 const float variation = 0.93f + 0.07f * hash3(cx * CHUNK + x, y, cz * CHUNK + z);
                 for (int f = 0; f < 6; f++) {
-                    if (isSolid(ctx, x + DX[f], y + DY[f], z + DZ[f])) continue;
+                    if (isFaceCulled(ctx, id, x + DX[f], y + DY[f], z + DZ[f])) continue;
                     const int col = (f == 2) ? g_top[id] : (f == 3) ? g_bottom[id] : g_side[id];
                     const float k = SHADE[f] * variation;
                     const float r = static_cast<float>((col >> 16) & 255) / 255.0f * k;

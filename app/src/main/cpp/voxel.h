@@ -13,7 +13,18 @@ constexpr int SEA_LEVEL = 22;
 constexpr int CHUNK_BYTES = CHUNK * CHUNK * HEIGHT;
 
 // Must match Blocks.kt.
-enum Block : int8_t { AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, SNOW = 5, WOOD = 6, BRICK = 7 };
+enum Block : int8_t {
+    AIR = 0,
+    GRASS = 1,
+    DIRT = 2,
+    STONE = 3,
+    SAND = 4,
+    SNOW = 5,
+    WOOD = 6,
+    BRICK = 7,
+    LEAVES = 8,
+    WATER = 9
+};
 
 inline int blockIndex(int x, int y, int z) { return (x * CHUNK + z) * HEIGHT + y; }
 

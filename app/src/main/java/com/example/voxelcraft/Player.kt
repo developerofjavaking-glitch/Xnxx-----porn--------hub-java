@@ -43,12 +43,26 @@ class Player {
             wx /= len
             wz /= len
         }
-        val speed = if (flying) FLY_SPEED else WALK_SPEED
+        val bx = floor(x).toInt()
+        val by = floor(y + 0.6).toInt()
+        val bz = floor(z).toInt()
+        val inWater = world.getBlock(bx, by, bz) == Blocks.WATER
+
+        val speed = if (flying) FLY_SPEED else if (inWater) 3.5 else WALK_SPEED
         val dx = wx * speed * d
         val dz = wz * speed * d
 
         if (flying) {
             vy = (if (input.jump) 8.0 else 0.0) + (if (input.down) -8.0 else 0.0)
+        } else if (inWater) {
+            if (input.jump) {
+                vy = 4.0
+            } else if (input.down) {
+                vy = -4.0
+            } else {
+                vy -= 6.0 * d
+                if (vy < -2.5) vy = -2.5
+            }
         } else {
             vy -= GRAVITY * d
             if (vy < -50.0) vy = -50.0

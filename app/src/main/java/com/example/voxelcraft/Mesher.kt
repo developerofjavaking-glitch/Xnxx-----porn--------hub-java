@@ -40,21 +40,31 @@ object Mesher {
         return (h and 0xFFFF) / 65535f
     }
 
-    private fun isSolid(
+    private fun isFaceCulled(
         c: Chunk, xp: Chunk?, xm: Chunk?, zp: Chunk?, zm: Chunk?,
-        x: Int, y: Int, z: Int
+        id: Int, x: Int, y: Int, z: Int
     ): Boolean {
         val s = Config.CHUNK_SIZE
         if (y < 0) return true
         if (y >= Config.WORLD_HEIGHT) return false
-        if (x in 0 until s && z in 0 until s) return c.blocks[c.index(x, y, z)].toInt() != 0
-        val n = when {
-            x < 0 -> xm
-            x >= s -> xp
-            z < 0 -> zm
-            else -> zp
-        } ?: return true
-        return n.blocks[n.index(x and (s - 1), y, z and (s - 1))].toInt() != 0
+        val nid: Int
+        if (x in 0 until s && z in 0 until s) {
+            nid = c.blocks[c.index(x, y, z)].toInt()
+        } else {
+            val n = when {
+                x < 0 -> xm
+                x >= s -> xp
+                z < 0 -> zm
+                else -> zp
+            } ?: return true
+            nid = n.blocks[n.index(x and (s - 1), y, z and (s - 1))].toInt()
+        }
+        if (nid == Blocks.AIR) return false
+        if (id == Blocks.WATER) {
+            return nid == Blocks.WATER || nid != Blocks.AIR
+        }
+        if (nid == Blocks.WATER) return false
+        return true
     }
 
     fun build(world: World, c: Chunk, version: Int): MeshResult {
@@ -93,7 +103,7 @@ object Mesher {
                     if (id == 0) continue
                     val variation = 0.93f + 0.07f * hash(c.cx * s + x, y, c.cz * s + z)
                     for (f in 0 until 6) {
-                        if (isSolid(c, xp, xm, zp, zm, x + DX[f], y + DY[f], z + DZ[f])) continue
+                        if (isFaceCulled(c, xp, xm, zp, zm, id, x + DX[f], y + DY[f], z + DZ[f])) continue
                         val col = when (f) {
                             2 -> Blocks.top[id]
                             3 -> Blocks.bottom[id]

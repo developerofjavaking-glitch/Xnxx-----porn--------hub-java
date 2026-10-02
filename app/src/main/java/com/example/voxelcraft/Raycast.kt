@@ -42,7 +42,8 @@ object Raycast {
                 t = tMaxZ; z += stepZ; tMaxZ += tDeltaZ
             }
             if (t > maxDist) return null
-            if (world.getBlock(x, y, z) != 0) return RayHit(x, y, z, px, py, pz)
+            val b = world.getBlock(x, y, z)
+            if (b != Blocks.AIR && b != Blocks.WATER) return RayHit(x, y, z, px, py, pz)
         }
     }
 }
